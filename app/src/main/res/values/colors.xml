@@ -1,0 +1,5 @@
+<resources>
+    <color name="bar_bg">#99000000</color>
+    <color name="accent">#FFC107</color>
+    <color name="launcher_bg">#263238</color>
+</resources>
