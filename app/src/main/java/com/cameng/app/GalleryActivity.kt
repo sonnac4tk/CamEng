@@ -40,6 +40,7 @@ class GalleryActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         b = ActivityGalleryBinding.inflate(layoutInflater)
         setContentView(b.root)
+        SystemUi.padForInsets(b.root, b.root, b.root)
         b.grid.layoutManager = GridLayoutManager(this, 3)
         b.grid.adapter = adapter
         b.uploadNow.setOnClickListener {

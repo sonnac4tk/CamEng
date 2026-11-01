@@ -11,6 +11,7 @@
         android:layout_gravity="center" />
 
     <LinearLayout
+        android:id="@+id/topBar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="top"
@@ -50,6 +51,7 @@
     </LinearLayout>
 
     <LinearLayout
+        android:id="@+id/bottomBar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"

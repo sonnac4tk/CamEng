@@ -69,8 +69,16 @@ class SlowMotionActivity : ComponentActivity() {
     private var recordingTarget: File? = null
     private var recordStart = 0L
 
+    /** Uma opção por taxa (fps) mostrada na tela. */
     private var options: List<Option> = emptyList()
+    /** Para cada fps, os tamanhos que ainda podem ser tentados (se um falhar, tenta o próximo). */
+    private val candidates = sortedMapOf<Int, MutableList<Option>>()
     private var selected: Option? = null
+    /** Incrementado a cada abertura/configuração; callbacks antigos são ignorados. */
+    @Volatile private var generation = 0
+    /** true depois que o primeiro quadro chegou na configuração atual. */
+    @Volatile private var framesArriving = false
+    private var openAttempts = 0
     private var torchOn = false
     private var zoom = 1f
     private var maxZoom = 1f
@@ -88,6 +96,8 @@ class SlowMotionActivity : ComponentActivity() {
         b = ActivitySlowMotionBinding.inflate(layoutInflater)
         setContentView(b.root)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        SystemUi.fullscreen(this)
+        SystemUi.padForInsets(b.root, b.topBar, b.bottomBar)
 
         b.back.setOnClickListener { finish() }
         b.record.setOnClickListener { if (recording) stopRecording() else startRecording() }
@@ -114,13 +124,14 @@ class SlowMotionActivity : ComponentActivity() {
             }
         }
 
-        options = discoverOptions()
+        for (o in discoverOptions()) candidates.getOrPut(o.fps) { mutableListOf() }.add(o)
+        for (list in candidates.values) list.sortWith(compareBy<Option>({ !it.highSpeed }, { sizeScore(it.size) }))
+        rebuildOptions()
         if (options.isEmpty()) {
             b.status.text = "Este celular não libera gravação acima de 30 fps para outros apps. " +
                 "Câmera lenta indisponível."
             b.record.isEnabled = false
         } else {
-            buildOptionButtons()
             selectOption(options.firstOrNull { it.fps == 120 } ?: options.first(), reconfigure = false)
         }
     }
@@ -130,6 +141,7 @@ class SlowMotionActivity : ComponentActivity() {
         orientationListener.enable()
         thread = HandlerThread("slowmo-camera").also { it.start() }
         handler = Handler(thread!!.looper)
+        openAttempts = 0
         if (options.isEmpty()) return
         if (b.texture.isAvailable) {
             openCamera()
@@ -143,6 +155,11 @@ class SlowMotionActivity : ComponentActivity() {
                 override fun onSurfaceTextureUpdated(st: SurfaceTexture) {}
             }
         }
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) SystemUi.fullscreen(this)
     }
 
     override fun onPause() {
@@ -172,7 +189,8 @@ class SlowMotionActivity : ComponentActivity() {
                     }
                 }
             }
-            if (found.isEmpty()) {
+            // Modo comum (sessão normal) sempre entra como última alternativa.
+            run {
                 val maxFps = ch.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)
                     ?.filter { it.lower == it.upper }?.maxOfOrNull { it.upper } ?: PLAYBACK_FPS
                 val sizes = map.getOutputSizes(MediaRecorder::class.java) ?: emptyArray()
@@ -180,12 +198,7 @@ class SlowMotionActivity : ComponentActivity() {
                     found += Option(id, pickSize(sizes.toList()), maxFps, false)
                 }
             }
-            if (found.isNotEmpty()) {
-                // Um tamanho por taxa de quadros, preferindo 720p (mais compatível em alta velocidade).
-                return found.groupBy { it.fps }
-                    .map { (_, list) -> list.minByOrNull { sizeScore(it.size) }!! }
-                    .sortedBy { it.fps }
-            }
+            if (found.isNotEmpty()) return found
         }
         return emptyList()
     }
@@ -198,6 +211,11 @@ class SlowMotionActivity : ComponentActivity() {
 
     private fun pickSize(sizes: List<Size>) = sizes.minByOrNull { sizeScore(it) }!!
 
+    private fun rebuildOptions() {
+        options = candidates.values.mapNotNull { it.firstOrNull() }
+        buildOptionButtons()
+    }
+
     private fun buildOptionButtons() {
         b.fpsOptions.removeAllViews()
         val dp = resources.displayMetrics.density
@@ -207,8 +225,11 @@ class SlowMotionActivity : ComponentActivity() {
                 setTextColor(0xFFFFFFFF.toInt())
                 setBackgroundResource(R.drawable.pill)
                 setPadding((14 * dp).toInt(), (8 * dp).toInt(), (14 * dp).toInt(), (8 * dp).toInt())
-                tag = opt
-                setOnClickListener { if (!recording) selectOption(opt, reconfigure = true) }
+                tag = opt.fps
+                setOnClickListener {
+                    val current = candidates[opt.fps]?.firstOrNull()
+                    if (!recording && current != null) selectOption(current, reconfigure = true)
+                }
             }
             val lp = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
@@ -221,7 +242,7 @@ class SlowMotionActivity : ComponentActivity() {
         selected = opt
         for (i in 0 until b.fpsOptions.childCount) {
             val v = b.fpsOptions.getChildAt(i)
-            v.isSelected = v.tag == opt
+            v.isSelected = v.tag == opt.fps
         }
         val ch = manager.getCameraCharacteristics(opt.cameraId)
         sensorOrientation = ch.get(CameraCharacteristics.SENSOR_ORIENTATION) ?: 90
@@ -232,11 +253,54 @@ class SlowMotionActivity : ComponentActivity() {
         zoom = zoom.coerceIn(1f, maxZoom)
         // Tela em pé: o vídeo (deitado no sensor) aparece girado.
         b.texture.setAspectRatio(opt.size.height, opt.size.width)
-        b.status.text = if (opt.highSpeed) "Câmera lenta: ${opt.factor}x" else
-            "Câmera lenta: ${opt.factor}x (modo alta velocidade não liberado neste celular)"
+        b.status.text = "Abrindo ${opt.label}…"
         if (reconfigure && device != null) {
             if (device?.id != opt.cameraId) { closeCamera(); openCamera() } else createSession()
         }
+    }
+
+    /**
+     * O modo atual não funcionou (o celular anuncia mas recusa). Tenta outro tamanho com a mesma
+     * taxa; se não houver, desativa essa taxa e volta para a maior taxa menor que funcione.
+     */
+    private fun onModeFailed(reason: String) {
+        val failed = selected ?: return
+        if (recording) stopRecording()
+        closeCamera()
+        val list = candidates[failed.fps]
+        list?.remove(failed)
+        val sameFps = list?.firstOrNull()
+        if (sameFps != null) {
+            selectOption(sameFps, reconfigure = false)
+            b.status.text = "Tentando ${sameFps.label}…"
+            reopenSoon()
+            return
+        }
+        candidates.remove(failed.fps)
+        rebuildOptions()
+        val fallback = options.filter { it.fps < failed.fps }.maxByOrNull { it.fps } ?: options.lastOrNull()
+        if (fallback == null) {
+            b.status.text = "Nenhum modo de câmera lenta funcionou neste celular ($reason)."
+            b.record.isEnabled = false
+            return
+        }
+        selectOption(fallback, reconfigure = false)
+        b.status.text = "${failed.fps} fps não é liberado pelo celular para outros apps ($reason). " +
+            "Usando ${fallback.fps} fps."
+        reopenSoon()
+    }
+
+    private fun reopenSoon() {
+        b.root.postDelayed({ if (handler != null && device == null) openCamera() }, 500)
+    }
+
+    private fun cameraErrorText(error: Int) = when (error) {
+        CameraDevice.StateCallback.ERROR_CAMERA_IN_USE -> "câmera em uso"
+        CameraDevice.StateCallback.ERROR_MAX_CAMERAS_IN_USE -> "muitas câmeras abertas"
+        CameraDevice.StateCallback.ERROR_CAMERA_DISABLED -> "câmera bloqueada pelo sistema"
+        CameraDevice.StateCallback.ERROR_CAMERA_DEVICE -> "falha da câmera"
+        CameraDevice.StateCallback.ERROR_CAMERA_SERVICE -> "falha do serviço de câmera"
+        else -> "código $error"
     }
 
     // ---------------------------------------------------------------- câmera
@@ -245,20 +309,41 @@ class SlowMotionActivity : ComponentActivity() {
     private fun openCamera() {
         val opt = selected ?: return
         val h = handler ?: return
+        val gen = ++generation
         try {
             manager.openCamera(opt.cameraId, object : CameraDevice.StateCallback() {
+                private var opened = false
                 override fun onOpened(d: CameraDevice) {
-                    device = d
-                    runOnUiThread { createSession() }
+                    opened = true
+                    if (gen != generation) { d.close(); return }
+                    runOnUiThread {
+                        if (gen != generation || handler == null) { d.close(); return@runOnUiThread }
+                        device = d
+                        openAttempts = 0
+                        createSession()
+                    }
                 }
                 override fun onDisconnected(d: CameraDevice) {
                     d.close()
-                    if (device == d) device = null
+                    runOnUiThread { if (device == d) device = null }
                 }
                 override fun onError(d: CameraDevice, error: Int) {
                     d.close()
-                    if (device == d) device = null
-                    runOnUiThread { b.status.text = "Erro ao abrir a câmera (código $error)" }
+                    val wasConfiguring = opened && !framesArriving
+                    runOnUiThread {
+                        if (device == d) device = null
+                        if (gen != generation) return@runOnUiThread
+                        when {
+                            // Câmera ainda sendo liberada pela tela de fotos: tenta de novo.
+                            !opened && openAttempts < 5 -> {
+                                openAttempts++
+                                b.status.text = "Aguardando câmera… (${cameraErrorText(error)})"
+                                b.root.postDelayed({ if (handler != null && device == null) openCamera() }, 600)
+                            }
+                            wasConfiguring -> onModeFailed(cameraErrorText(error))
+                            else -> b.status.text = "Erro na câmera: ${cameraErrorText(error)}"
+                        }
+                    }
                 }
             }, h)
         } catch (e: Exception) {
@@ -267,6 +352,7 @@ class SlowMotionActivity : ComponentActivity() {
     }
 
     private fun closeCamera() {
+        generation++
         runCatching { session?.close() }
         session = null
         runCatching { device?.close() }
@@ -301,6 +387,8 @@ class SlowMotionActivity : ComponentActivity() {
         val st = b.texture.surfaceTexture ?: return
         runCatching { session?.close() }
         session = null
+        framesArriving = false
+        val gen = generation
 
         st.setDefaultBufferSize(opt.size.width, opt.size.height)
         previewSurface?.release()
@@ -316,29 +404,49 @@ class SlowMotionActivity : ComponentActivity() {
             newRecorder(dummy, opt, persistent).release()
             dummy.delete()
         } catch (e: Exception) {
-            b.status.text = "Gravador não suporta este modo: ${e.message}"
+            onModeFailed("gravador recusou")
             return
         }
 
         val targets = listOf(previewSurface!!, persistent)
         val callback = object : CameraCaptureSession.StateCallback() {
             override fun onConfigured(s: CameraCaptureSession) {
-                session = s
-                runOnUiThread { updateRepeating() }
+                runOnUiThread {
+                    if (gen != generation) return@runOnUiThread
+                    session = s
+                    updateRepeating()
+                    // Se nenhum quadro chegar, o modo não funciona de verdade neste aparelho.
+                    b.root.postDelayed({
+                        if (gen == generation && !framesArriving) onModeFailed("sem imagem")
+                    }, 3000)
+                }
             }
             override fun onConfigureFailed(s: CameraCaptureSession) {
-                runOnUiThread {
-                    b.status.text = "Este modo (${opt.label}) não pôde ser iniciado. Tente outro."
-                }
+                runOnUiThread { if (gen == generation) onModeFailed("configuração recusada") }
             }
         }
         try {
             if (opt.highSpeed) d.createConstrainedHighSpeedCaptureSession(targets, callback, handler)
             else d.createCaptureSession(targets, callback, handler)
         } catch (e: Exception) {
-            b.status.text = "Erro ao configurar a câmera: ${e.message}"
+            onModeFailed("configuração recusada")
         }
     }
+
+    private val frameCallback = object : CameraCaptureSession.CaptureCallback() {
+        override fun onCaptureCompleted(
+            session: CameraCaptureSession, request: CaptureRequest, result: android.hardware.camera2.TotalCaptureResult
+        ) {
+            if (!framesArriving) {
+                framesArriving = true
+                runOnUiThread { selected?.let { b.status.text = statusFor(it) } }
+            }
+        }
+    }
+
+    private fun statusFor(opt: Option) =
+        if (opt.highSpeed) "Câmera lenta: ${opt.factor}x (${opt.fps} fps)"
+        else "Câmera lenta: ${opt.factor}x (alta velocidade não liberada neste celular)"
 
     private fun updateRepeating() {
         val s = session ?: return
@@ -359,12 +467,12 @@ class SlowMotionActivity : ComponentActivity() {
             )
             applyZoom(builder)
             if (s is CameraConstrainedHighSpeedCaptureSession) {
-                s.setRepeatingBurst(s.createHighSpeedRequestList(builder.build()), null, handler)
+                s.setRepeatingBurst(s.createHighSpeedRequestList(builder.build()), frameCallback, handler)
             } else {
-                s.setRepeatingRequest(builder.build(), null, handler)
+                s.setRepeatingRequest(builder.build(), frameCallback, handler)
             }
         } catch (e: Exception) {
-            b.status.text = "Erro na câmera: ${e.message}"
+            if (!framesArriving) onModeFailed("pedido recusado") else b.status.text = "Erro na câmera: ${e.message}"
         }
     }
 

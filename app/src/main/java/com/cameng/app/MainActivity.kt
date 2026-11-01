@@ -102,6 +102,8 @@ class MainActivity : ComponentActivity() {
         b = ActivityMainBinding.inflate(layoutInflater)
         setContentView(b.root)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        SystemUi.fullscreen(this)
+        SystemUi.padForInsets(b.root, b.topBar, b.bottomBar)
 
         setupComment()
         setupRuler()
@@ -147,6 +149,11 @@ class MainActivity : ComponentActivity() {
         refreshDriveStatus()
         b.root.post(ticker)
         UploadScheduler.enqueueNow(this)
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) SystemUi.fullscreen(this)
     }
 
     override fun onPause() {
