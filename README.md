@@ -12,7 +12,7 @@ com a galeria pessoal** e **sobem sozinhas para o Google Drive**.
 | Zoom | Movimento de pinça na tela ou barra de zoom. O botão **1x** volta ao normal. |
 | Foco | Toque na tela no ponto desejado. |
 | Lanterna | Botão **🔦**. Fica ligada até você desligar. |
-| Câmera lenta | Botão **🐢**. Escolha 120/240 fps (ou o que o celular liberar). Funciona com e sem lanterna. |
+| Câmera lenta | Botão **🐢**. Grava a 120 fps (vídeo 4x mais lento). Funciona com e sem lanterna. |
 | Data e hora | Gravadas no canto inferior direito de toda foto. |
 | Comentário | Digite no campo de cima. Ele sai na foto junto com a data/hora e fica guardado para as próximas fotos (o **✕** limpa). |
 | Régua / escala | Botão **📏 Régua**. Arraste as pontas para esticar/girar e o meio para mover. A régua sai gravada na foto. |
@@ -78,11 +78,11 @@ Ou na linha de comando, `./gradlew assembleDebug`.
 
 ## Sobre a câmera lenta no A54
 
-O app tenta primeiro o modo de alta velocidade da Camera2 (120/240 fps). Alguns
-celulares Samsung reservam esse modo para o app de câmera deles. Nesse caso o CamEng
-grava na maior taxa liberada (ex.: 60 fps = 2x mais lento) e mostra isso na tela.
-O vídeo já sai lento em qualquer player e não tem áudio. Se a lanterna não acender
-em algum modo de alta velocidade, é limitação do aparelho nesse modo.
+O app grava a **120 fps** (4x mais lento) usando o modo de alta velocidade da Camera2.
+O A54 anuncia 240 fps, mas recusa esse modo para outros apps (a Samsung o reserva
+para a câmera dela), por isso ele foi retirado. Se um dia o 120 fps não estiver
+disponível, o app usa o modo comum mais rápido (ex.: 60 fps = 2x).
+O vídeo já sai lento em qualquer player e não tem áudio.
 
 ## Estrutura do código
 

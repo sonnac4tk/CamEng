@@ -37,12 +37,11 @@ import java.util.Locale
 /**
  * Gravação em câmera lenta usando Camera2.
  *
- * - Se o aparelho libera "constrained high speed video" para outros apps (120/240 fps),
- *   usa esse modo.
+ * - Usa 120 fps no modo "constrained high speed video" (4x mais lento).
  * - Senão, grava na maior taxa comum disponível (ex.: 60 fps), se for maior que 30.
  *
  * O vídeo é gravado em alta taxa e salvo para tocar a 30 fps, ou seja, já fica lento
- * em qualquer player (120 fps = 4x mais lento, 240 fps = 8x).
+ * em qualquer player (120 fps = 4x mais lento).
  */
 class SlowMotionActivity : ComponentActivity() {
 
@@ -53,6 +52,7 @@ class SlowMotionActivity : ComponentActivity() {
 
     companion object {
         const val PLAYBACK_FPS = 30
+        const val SLOWMO_FPS = 120
     }
 
     private lateinit var b: ActivitySlowMotionBinding
@@ -185,12 +185,13 @@ class SlowMotionActivity : ComponentActivity() {
             if (caps.contains(CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_CONSTRAINED_HIGH_SPEED_VIDEO)) {
                 for (size in map.highSpeedVideoSizes) {
                     for (r in map.getHighSpeedVideoFpsRangesFor(size)) {
-                        if (r.lower == r.upper && r.upper > PLAYBACK_FPS) found += Option(id, size, r.upper, true)
+                        // Só 120 fps: no A54 o 240 é anunciado mas recusado para outros apps.
+                        if (r.lower == SLOWMO_FPS && r.upper == SLOWMO_FPS) found += Option(id, size, r.upper, true)
                     }
                 }
             }
-            // Modo comum (sessão normal) sempre entra como última alternativa.
-            run {
+            // Sem 120 fps em alta velocidade: usa o modo comum mais rápido (ex.: 60 fps).
+            if (found.isEmpty()) {
                 val maxFps = ch.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)
                     ?.filter { it.lower == it.upper }?.maxOfOrNull { it.upper } ?: PLAYBACK_FPS
                 val sizes = map.getOutputSizes(MediaRecorder::class.java) ?: emptyArray()
