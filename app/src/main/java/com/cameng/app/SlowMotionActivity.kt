@@ -131,12 +131,17 @@ class SlowMotionActivity : ComponentActivity() {
         thread = HandlerThread("slowmo-camera").also { it.start() }
         handler = Handler(thread!!.looper)
         if (options.isEmpty()) return
-        if (b.texture.isAvailable) openCamera()
-        else b.texture.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
-            override fun onSurfaceTextureAvailable(st: SurfaceTexture, w: Int, h: Int) = openCamera()
-            override fun onSurfaceTextureSizeChanged(st: SurfaceTexture, w: Int, h: Int) {}
-            override fun onSurfaceTextureDestroyed(st: SurfaceTexture) = true
-            override fun onSurfaceTextureUpdated(st: SurfaceTexture) {}
+        if (b.texture.isAvailable) {
+            openCamera()
+        } else {
+            b.texture.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
+                override fun onSurfaceTextureAvailable(st: SurfaceTexture, w: Int, h: Int) {
+                    openCamera()
+                }
+                override fun onSurfaceTextureSizeChanged(st: SurfaceTexture, w: Int, h: Int) {}
+                override fun onSurfaceTextureDestroyed(st: SurfaceTexture): Boolean = true
+                override fun onSurfaceTextureUpdated(st: SurfaceTexture) {}
+            }
         }
     }
 

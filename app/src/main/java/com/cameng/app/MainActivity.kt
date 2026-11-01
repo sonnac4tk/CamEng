@@ -87,7 +87,8 @@ class MainActivity : ComponentActivity() {
     private val authLauncher =
         registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
             try {
-                val r = Identity.getAuthorizationClient(this).getAuthorizationResultFromIntent(result.data)
+                val data = result.data ?: throw IllegalStateException("Autorização cancelada")
+                val r = Identity.getAuthorizationClient(this).getAuthorizationResultFromIntent(data)
                 onAuthorized(r)
             } catch (e: Exception) {
                 showAuthError(e)
