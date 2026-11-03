@@ -42,13 +42,17 @@ object Storage {
         return (pending + sent).sortedByDescending { it.file.lastModified() }
     }
 
-    /** Cria o nome final (ainda inexistente) para uma nova mídia. */
-    fun newFile(ctx: Context, prefix: String, ext: String, date: Date = Date()): File {
-        val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(date)
-        var name = "${prefix}_$stamp.$ext"
+    /**
+     * Cria o nome final (ainda inexistente) para uma nova mídia, no formato
+     * "horas-minutos-segundos - dia-mês-ano", ex.: "14-32-05 - 03-11-2026.jpg".
+     * [suffix] é acrescentado depois da data (ex.: " (lento)" nos vídeos).
+     */
+    fun newFile(ctx: Context, ext: String, date: Date = Date(), suffix: String = ""): File {
+        val stamp = SimpleDateFormat("HH-mm-ss - dd-MM-yyyy", Locale.US).format(date)
+        var name = "$stamp$suffix.$ext"
         var i = 2
         while (File(pendingDir(ctx), name).exists() || File(uploadedDir(ctx), name).exists()) {
-            name = "${prefix}_${stamp}_$i.$ext"
+            name = "$stamp$suffix ($i).$ext"
             i++
         }
         return File(pendingDir(ctx), name)

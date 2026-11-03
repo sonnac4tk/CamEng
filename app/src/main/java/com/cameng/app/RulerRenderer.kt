@@ -21,17 +21,12 @@ object RulerRenderer {
     private val PT_BR = Locale("pt", "BR")
     private val MINOR_STEPS_MM = floatArrayOf(1f, 2f, 5f, 10f, 20f, 50f, 100f, 200f, 500f, 1000f, 2000f, 5000f)
 
-    fun formatLength(mm: Float): String = when {
-        mm < 10f -> String.format(PT_BR, "%.1f mm", mm)
-        mm < 1000f -> String.format(PT_BR, "%.1f cm", mm / 10f)
-        else -> String.format(PT_BR, "%.2f m", mm / 1000f)
-    }
+    /** Sempre em milímetros. */
+    fun formatLength(mm: Float): String =
+        if (mm < 100f) String.format(PT_BR, "%.1f mm", mm)
+        else String.format(PT_BR, "%.0f mm", mm)
 
-    private fun cmLabel(mm: Float): String {
-        val cm = mm / 10f
-        return if (abs(cm - round(cm)) < 1e-3) round(cm).toInt().toString()
-        else String.format(PT_BR, "%.1f", cm)
-    }
+    private fun mmLabel(mm: Float): String = round(mm).toInt().toString()
 
     private fun isMultiple(a: Float, b: Float): Boolean {
         val r = a / b
@@ -113,7 +108,7 @@ object RulerRenderer {
                     else -> 0.28f
                 } * h
                 c.drawLine(x, top, x, top + th, tick)
-                if (isMajor) c.drawText(if (k == 0) "0 cm" else cmLabel(mm), if (k == 0) x + 12f * unit else x, labelY, label)
+                if (isMajor) c.drawText(if (k == 0) "0 mm" else mmLabel(mm), if (k == 0) x + 12f * unit else x, labelY, label)
                 k++
             }
 

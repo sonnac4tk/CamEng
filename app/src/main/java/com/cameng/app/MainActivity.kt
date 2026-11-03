@@ -388,14 +388,14 @@ class MainActivity : ComponentActivity() {
     private fun askCustomLength() {
         val input = EditText(this).apply {
             inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
-            hint = "comprimento em cm (ex.: 15)"
+            hint = "comprimento em mm (ex.: 150)"
         }
         AlertDialog.Builder(this)
             .setTitle("Medida real entre as pontas da régua")
             .setView(input)
             .setPositiveButton("OK") { _, _ ->
-                val cm = input.text.toString().replace(',', '.').toFloatOrNull()
-                if (cm != null && cm > 0f) calibrate(cm * 10f)
+                val mm = input.text.toString().replace(',', '.').toFloatOrNull()
+                if (mm != null && mm > 0f) calibrate(mm)
                 else Toast.makeText(this, "Valor inválido", Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton("Cancelar", null)

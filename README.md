@@ -17,16 +17,21 @@ com a galeria pessoal** e **sobem sozinhas para o Google Drive**.
 | Comentário | Digite no campo de cima. Ele sai na foto junto com a data/hora e fica guardado para as próximas fotos (o **✕** limpa). |
 | Régua / escala | Botão **📏 Régua**. Arraste as pontas para esticar/girar e o meio para mover. A régua sai gravada na foto. |
 
+### Nome dos arquivos
+
+`horas-minutos-segundos - dia-mês-ano`, por exemplo `14-32-05 - 03-11-2026.jpg`.
+Vídeos em câmera lenta: `14-32-05 - 03-11-2026 (lento).mp4`.
+
 ### Modos da régua
 
 - **Virtual**: barra com divisões (4 a 100) sem medida real, só para comparação.
-- **Real (automática)**: o app estima a escala em cm pela distância do foco da câmera.
+- **Real (automática)**: o app estima a escala em mm pela distância do foco da câmera.
   Toque no objeto para focar antes. É uma **estimativa** (normalmente ±10–20%),
   depende do celular e só funciona com zoom ≥ 1x.
 - **Real (calibrada)**: a forma mais precisa. Coloque no mesmo plano um objeto de medida
   conhecida (cartão de crédito, moeda de R$ 1, folha A4 ou outra medida que você digitar),
   ajuste as pontas da régua nas bordas dele e toque em **Calibrar**. Depois a régua mostra
-  cm reais. Se só o zoom mudar, a calibração continua valendo. Se a distância mudar,
+  milímetros reais. Se só o zoom mudar, a calibração continua valendo. Se a distância mudar,
   calibre de novo.
 
 > Atenção: desinstalar o app apaga as fotos guardadas nele. As que já foram para o Drive

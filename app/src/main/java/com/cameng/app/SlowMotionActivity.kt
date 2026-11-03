@@ -496,7 +496,7 @@ class SlowMotionActivity : ComponentActivity() {
         val opt = selected ?: return
         val surface = recorderSurface ?: return
         if (session == null) return
-        val target = Storage.newFile(this, "VIDEO_LENTO_${opt.fps}fps", "mp4")
+        val target = Storage.newFile(this, "mp4", suffix = " (lento)")
         val tmp = Storage.tempFor(target)
         try {
             recorder = newRecorder(tmp, opt, surface)

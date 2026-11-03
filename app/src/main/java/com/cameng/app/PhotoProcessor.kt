@@ -61,7 +61,7 @@ object PhotoProcessor {
         stamp(bmp, lines)
 
         // 5) Salva (primeiro em .tmp para o envio nunca pegar arquivo pela metade).
-        val target = Storage.newFile(ctx, "FOTO", "jpg", req.date)
+        val target = Storage.newFile(ctx, "jpg", req.date)
         val tmp = Storage.tempFor(target)
         FileOutputStream(tmp).use { bmp.compress(Bitmap.CompressFormat.JPEG, 92, it) }
         bmp.recycle()
